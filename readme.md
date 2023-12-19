@@ -6,5 +6,5 @@ Recommend Python version >= 3.9
 install requirements.txt
 
 # run the script
-python main.py --do_train --do_eval
+python main.py --do_train
 
