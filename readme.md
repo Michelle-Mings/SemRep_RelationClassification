@@ -6,6 +6,9 @@ To run this code, we recommend Python version >= 3.9. To install the packages ne
 
 ## Data
 There are three versions of data available for download from this repository, corresponding to the data used in the paper, and they are split into Train/Dev/Test.
+`./EntityNameData` directory contains data where entities were formatted as entity names;
+`./EntityTypeData` directory contains data where entities were formatted as semantic types;
+`./EntityGroupData` directory contains data where entities were formatted as semantic groups;
 
 ## Run the code for training
 Download the data and place all Python scripts in the same folder. 
