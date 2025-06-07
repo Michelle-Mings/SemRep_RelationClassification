@@ -23,3 +23,4 @@ You can specify your data for pretraining, training, and testing in the `main.py
 
 ## Run the code for test
 `python predict.py`
+## [Download the trained model from Google Drive](https://drive.google.com/drive/u/0/folders/1QpSVC9RX62uPmfv3r1Y1HSSf_PStU2Ie)
