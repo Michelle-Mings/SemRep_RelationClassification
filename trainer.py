@@ -6,11 +6,11 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler, Sampler
 from tqdm import tqdm, trange
-from transformers import AdamW, BertConfig, get_linear_schedule_with_warmup
+from transformers import BertConfig, get_linear_schedule_with_warmup
 from sklearn.utils.class_weight import compute_class_weight
 from model import RBERT
 from utils import compute_metrics, get_label, write_prediction
-
+from torch.optim import AdamW
 logger = logging.getLogger(__name__)
 
 class Trainer(object):
@@ -21,6 +21,12 @@ class Trainer(object):
         self.test_dataset = test_dataset
         self.label_lst = get_label(args)
         self.num_labels = len(self.label_lst)
+
+        all_labels = [int(x[3]) for x in train_dataset]  # adjust indexing if needed
+        classes = np.arange(self.num_labels)
+        weights = compute_class_weight(class_weight="balanced", classes=classes, y=all_labels)
+        args.class_weight = torch.tensor(weights, dtype=torch.float)
+
         
         self.config = BertConfig.from_pretrained(
             args.model_name_or_path,
@@ -172,7 +178,7 @@ class Trainer(object):
                     "labels": batch[3],
                     "e1_mask": batch[4],
                     "e2_mask": batch[5],
-                }
+                }                
                 outputs = self.model(**inputs)
                 tmp_eval_loss, logits = outputs[:2]
 

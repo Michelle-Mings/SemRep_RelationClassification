@@ -1,17 +1,14 @@
 import torch
 import torch.nn as nn
 import logging
-import argparse
-from transformers import BertModel, BertPreTrainedModel, BertConfig, AdamW, get_linear_schedule_with_warmup
-from torch import Tensor
-import numpy as np
+from transformers import BertModel, BertPreTrainedModel, BertConfig, get_linear_schedule_with_warmup
 from tqdm import tqdm, trange
-from torch.utils.data import DataLoader, RandomSampler, SequentialSampler, Sampler
-from typing import Optional, Tuple
+from torch.utils.data import DataLoader, SequentialSampler
 import torch.nn.functional as F
-from utils import compute_metrics, get_label
+from utils import get_label
 logger = logging.getLogger(__name__)
 import os
+from torch.optim import AdamW
 
 class FCLayer_(nn.Module):
 	def __init__(self, input_dim, output_dim, dropout_rate=0.1, use_activation=True):
@@ -32,15 +29,16 @@ class FCLayer_(nn.Module):
 
 
 class PreTrainedBERT(BertPreTrainedModel):
-	def __init__(self, config, args, from_func):
-		super(PreTrainedBERT, self).__init__(config)
+	def __init__(self, config, args, from_func, load_weights=True):
+		super().__init__(config)
 		self.args = args
-		self.bert = BertModel(config=config)
-		logger.info("***** Pre-Trained BERT Base loaded! *****")
+		if load_weights:
+			self.bert = BertModel.from_pretrained(args.model_name_or_path, config=config)
+		else:
+			self.bert = BertModel(config)
 		self.num_labels = config.num_labels
 		self.cls_fc_layer = FCLayer_(config.hidden_size, config.hidden_size, 0.1)
-		
-
+			
 	@staticmethod
 	def get_loss_pair(i, j):
 		'''
@@ -48,16 +46,16 @@ class PreTrainedBERT(BertPreTrainedModel):
 		'''
 		score = torch.exp(F.cosine_similarity(i, j, dim=1)/0.1)
 		return score
-  
+		
 	def infer(self, input_ids, attention_mask, token_type_ids):
 		outputs = self.bert(
 			input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids
 		) 
-		attentions = outputs[2]
-		sequence_output = outputs[0]
-		pooled_output = outputs[1]
-		if self.args.do_pretrain:
-			pooled_output = self.cls_fc_layer(pooled_output)
+
+		attentions = outputs.attentions
+		sequence_output = outputs.last_hidden_state
+		pooled_output = outputs.pooler_output
+		pooled_output = self.cls_fc_layer(pooled_output)
 		return (sequence_output, pooled_output, attentions)
 
 	def forward(self, input_ids, attention_mask, token_type_ids, labels):
@@ -69,10 +67,9 @@ class PreTrainedBERT(BertPreTrainedModel):
 			input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids
 		)
 		
-		attentions = outputs[2]
-		pooled_output = outputs[1]
-		if self.args.do_pretrain:
-			pooled_output = self.cls_fc_layer(pooled_output)
+		attentions = outputs.attentions
+		pooled_output = outputs.pooler_output
+		pooled_output = self.cls_fc_layer(pooled_output)
 
 		sample_outputs = pooled_output.split(1, dim=0)
 		# Loop over even samples
@@ -134,7 +131,7 @@ class PreTrainer(object):
 			label2id={label: i for i, label in enumerate(self.label_lst)},
 			output_attentions=True,
 		)
-		self.model = PreTrainedBERT.from_pretrained(args.model_name_or_path, config=self.config, args=args, from_func="pretrain.py")
+		self.model = PreTrainedBERT(config=self.config, args=args, from_func="pretrain.py")
 
 		self.device = "cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu"
 		self.model.to(self.device)
@@ -242,5 +239,5 @@ class PreTrainer(object):
 		# Save model checkpoint (Overwrite)
 		if not os.path.exists(self.args.pre_model_dir):
 			os.makedirs(self.args.pre_model_dir)
-		self.model.save_pretrained(self.args.pre_model_dir)
+		self.model.save_pretrained(self.args.pre_model_dir, safe_serialization=True)
 		logger.info("Saving model checkpoint to %s", self.args.pre_model_dir)

@@ -1,25 +1,32 @@
 import torch
 import torch.nn as nn
-from transformers import BertModel, BertPreTrainedModel
+from transformers.models.bert.modeling_bert import BertModel, BertPreTrainedModel
 from torch import Tensor
 import numpy as np
 from typing import Optional, Tuple
 import torch.nn.functional as F
+from transformers import BertConfig
 import os
 from pretrain import PreTrainedBERT
 import logging
+from safetensors.torch import load_file
 logger = logging.getLogger(__name__)
 
 def load_pretrained_model(args):
-    # Check whether model exists
-    print(args.pre_model_dir)
-
-    if not os.path.exists(args.pre_model_dir):
-        raise Exception("Model doesn't exists! Pre-Train first!")
-
-    model = PreTrainedBERT.from_pretrained(args.pre_model_dir, args=args, from_func = "from model.py")
-    logger.info("***** PreTrained Loaded *****")
-    return model
+    # Load config from pretrained dir if exists, else from base model
+    if getattr(args, "pre_model_dir", None) and os.path.exists(os.path.join(args.pre_model_dir, "model.safetensors")):
+        config = BertConfig.from_pretrained(args.pre_model_dir, output_attentions=True)
+        model = PreTrainedBERT(config=config, args=args, from_func="from model.py")
+        state_dict = load_file(os.path.join(args.pre_model_dir, "model.safetensors"))
+        model.load_state_dict(state_dict, strict=False)
+        logger.info("***** PreTrained Loaded (from pre_model_dir) *****")
+        return model
+    else:
+        # fallback: build wrapper from base encoder weights (no extra pretraining weights)
+        config = BertConfig.from_pretrained(args.model_name_or_path, output_attentions=True)
+        model = PreTrainedBERT(config=config, args=args, from_func="from model.py")
+        logger.info("***** PreTrained Loaded (from base model) *****")
+        return model
 
 
 class ScaledDotProductAttention(nn.Module):
@@ -153,6 +160,7 @@ class FCLayer(nn.Module):
 class RBERT(BertPreTrainedModel):
 
     def __init__(self, config, args, num_samples):
+        self.args = args
         super(RBERT, self).__init__(config)
         
         self.bert = load_pretrained_model(args)
@@ -218,7 +226,7 @@ class RBERT(BertPreTrainedModel):
     def forward(self, input_ids, attention_mask, token_type_ids, labels, e1_mask, e2_mask, output_attentions = True):
         outputs = self.predict(input_ids, attention_mask, token_type_ids, labels, e1_mask, e2_mask, output_attentions = True)
         logits = outputs[0]
-        class_weight = self.get_batch_class_weights(labels).to("cuda")
+        class_weight = self.args.class_weight.to(labels.device)
         
         # Softmax
         if labels is not None:

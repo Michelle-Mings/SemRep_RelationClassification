@@ -13,12 +13,12 @@ def main(args):
     test_dataset = load_and_cache_examples(args, tokenizer, mode="test")
     
     if args.do_train:
-        pretrain_dataset = load_and_cache_examples(args, tokenizer, mode="pretrain")
-        pretrain = PreTrainer(args, pretrain_dataset=pretrain_dataset) 
         if args.do_pretrain:
-            pretrain.train() # return the pre-trained model
-        pretrain.save_model()
-        ## Fine tuning
+            pretrain_dataset = load_and_cache_examples(args, tokenizer, mode="pretrain")
+            pretrain = PreTrainer(args, pretrain_dataset=pretrain_dataset)
+            pretrain.train()
+            pretrain.save_model()
+
         trainer = Trainer(args, train_dataset=train_dataset, test_dataset=test_dataset)
         trainer.train()
 
@@ -36,10 +36,11 @@ def main(args):
 
 # DEFAULT CONFIGURATIONS
 DIR_PREFIX = "EntityType"
-DO_PRETRAIN = True
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("--do_pretrain", action="store_true", help="Whether to run pretraining.")
+
     parser.add_argument("--task", default="semeval", type=str, help="The name of the task to train")
     parser.add_argument(
         "--data_dir",
@@ -47,24 +48,15 @@ if __name__ == "__main__":
         type=str,
         help="The input data dir. Should contain the .tsv files (or other data files) for the task.",
     )
-    # after this run, for semantic types and groups, we can load model from nopretrainedmodel directory folder and use different train and test set
-    pretrain_path = ''
-    if DO_PRETRAIN == True:
-        pretrain_path = '_Pretrain'   
     
-    parser.add_argument(
-        "--pre_model_dir",
-        default=f"./{DIR_PREFIX}{pretrain_path}/{DIR_PREFIX}-pretrainedmodel", type=str, help="Path to model"
-        ) # destination directory Pretrainer save_model; also RBert class __init__() loads pretrained model from here;
-    parser.add_argument(
-        "--model_dir",
-        default=f"./{DIR_PREFIX}{pretrain_path}/{DIR_PREFIX}-model_",
-        type=str, help="Path to model"
-        ) # Source directory for Rbert class load_model(), destination directory for Rbert class save_model()
+    parser.add_argument("--pre_model_dir", default=f"./{DIR_PREFIX}_Pretrain/{DIR_PREFIX}-pretrainedmodel", type=str)
+
+    parser.add_argument("--model_dir", default=f"./{DIR_PREFIX}/{DIR_PREFIX}-model_", type=str)
+
     parser.add_argument(
         "--model_name_or_path",
         type=str,
-        default = 'microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract',
+        default = 'microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext',
         help="Model Name or Path",
     ) # Pretrainer object fresh load from HuggingFace
 
@@ -139,6 +131,7 @@ if __name__ == "__main__":
     parser.add_argument("--do_eval", action="store_true", help="Whether to run eval on the test set.")
     parser.add_argument("--do_further_tuning", action="store_true", help="Whether to run additional fine-tuning.")
     parser.add_argument("--no_cuda", action="store_true", help="Avoid using CUDA when available")
+    parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
         "--add_sep_token",
         action="store_true",
@@ -146,5 +139,7 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    args.do_pretrain = DO_PRETRAIN
+    pretrain_path = ''
+    if args.do_pretrain:
+        pretrain_path = '_Pretrain'
     main(args)

@@ -6,35 +6,34 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader, SequentialSampler, TensorDataset
 from tqdm import tqdm
+from safe_loaders import safe_torch_load_args
 
 from model import RBERT
-from utils import get_label, init_logger, load_tokenizer
+from utils import get_label, load_tokenizer
 
 logger = logging.getLogger(__name__)
+LABEL_PROB = {'PART_OF': 0.76, 'COEXISTS_WITH': 0.5, 'LOCATION_OF': 0.76, 'ISA': 0.74, 'PROCESS_OF': 0.68, 'INTERACTS_WITH': 0.5, 'TREATS': 0.5, 'DISRUPTS': 0.81, 'AFFECTS': 0.79, 'USES': 0.7, 'DIAGNOSES': 0.83, 'AUGMENTS': 0.76, 'PRECEDES': 0.82, 'PREDISPOSES': 0.5, 'STIMULATES': 0.51, 'ADMINISTERED_TO': 0.7, 'PRODUCES': 0.5, 'CAUSES': 0.8, 'COMPARED_WITH': 0.55, 'PREVENTS': 0.67, 'INHIBITS': 0.79, 'ASSOCIATED_WITH': 0.85, 'NotValid': 0.5}
 
 def get_device(pred_config):
     return "cuda" if torch.cuda.is_available() and not pred_config.no_cuda else "cpu"
 
 
 def get_args(pred_config):
-    return torch.load(os.path.join(pred_config.model_dir, "training_args.bin"))
+    return safe_torch_load_args(os.path.join(pred_config.model_dir, "training_args.bin"))
 
 
 def load_model(pred_config, args, device):
-    # Check whether model exists
-   
     print(pred_config.model_dir)
     if not os.path.exists(pred_config.model_dir):
         raise Exception("Model doesn't exists! Train first!")
-    
-    model = RBERT.from_pretrained(pred_config.model_dir, args=args, num_samples = 2, output_attentions=True)
+
     try:
-        model = RBERT.from_pretrained(pred_config.model_dir, args=args, num_samples = 2, output_attentions=True)
+        model = RBERT.from_pretrained(pred_config.model_dir, args=args, num_samples=2, output_attentions=True)
         model.to(device)
         model.eval()
         logger.info("***** Model Loaded *****")
-    except:
-        raise Exception("Some model files might be missing...")
+    except Exception as e:
+        raise Exception(f"Some model files might be missing or incompatible: {e}")
 
     return model
 
@@ -150,7 +149,7 @@ def predict(pred_config):
     # load model and args
     args = get_args(pred_config)
     device = get_device(pred_config)
-    args.data_dir = "/ocean/projects/cis230035p/sming/con2/EntityTypeData/"
+    args.data_dir = "EntityTypeData"
     model = load_model(pred_config, args, device)
     logger.info(args)
 
@@ -197,8 +196,11 @@ def predict(pred_config):
             predicted_label = label_lst[pred_idx]
             threshold = LABEL_PROB[predicted_label]
             predict_prob = round(float(max_val),2)
-
-            f.write("{}\t{}\t{}\t{}\n".format(ori_input.strip(),predicted_label, predict_prob, add))
+            
+            if predict_prob >= threshold:
+                f.write("{}\t{}\t{}\t{}\n".format(ori_input.strip(),predicted_label, predict_prob, add))
+            else:
+                f.write("{}\t{}\t{}\t{}\n".format(ori_input.strip(),"NotValid", predict_prob, add))
                 
     logger.info("Prediction Done!")
 

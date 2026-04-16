@@ -3,19 +3,11 @@ import csv
 import json
 import logging
 import os
-# from imblearn.over_sampling import SVMSMOTE,SMOTE
-# from imblearn.combine import SMOTEENN
 from collections import defaultdict
 import torch
-import collections
-from torch.utils.data import TensorDataset, ConcatDataset
-import statistics
+from torch.utils.data import TensorDataset
 from utils import get_label
-import numpy as np
 logger = logging.getLogger(__name__)
-
-with open("indicator_list.json", 'r') as file:
-    indicators = json.load(file)
 
 class InputExample(object):
     """
@@ -66,7 +58,6 @@ class InputFeatures(object):
         self.label_id = label_id
         self.e1_mask = e1_mask
         self.e2_mask = e2_mask
-        # self.indicator_feature = indicator_feature
 
     def __repr__(self):
         return str(self.to_json_string())
@@ -122,20 +113,6 @@ class SemEvalProcessor(object):
             if i % 1000 == 0:
                 logger.info(line)
             examples.append(InputExample(guid=guid, text_a=text_a, label=label))
-        
-        # simple over sampling
-        # if set_type == "train":
-        #     examples_cp = examples.copy()
-        #     mean_ = int(statistics.mean(label_distribution.values()))
-        #     for label, num in label_distribution.items():
-        #         if num <= 330:
-        #             power = int(mean_ / num) - 1
-        #             if power == 0:
-        #                 power = 1
-        #             for each_sample in examples_cp:
-        #                 if each_sample.label == label:
-        #                     examples.extend([each_sample]*power)
-        #             power = None
 
         return examples
 
@@ -177,20 +154,6 @@ def convert_examples_to_features(
     for (ex_index, example) in enumerate(examples):
         if ex_index % 5000 == 0:
             logger.info("Writing example %d of %d" % (ex_index, len(examples)))
-        
-        # features list
-        # lowercase = example.text_a.lower()
-        # indicator_feature = []
-        # for each_indicator in indicators:
-        #     if each_indicator in lowercase:
-        #         indicator_feature.append(1)
-        #     else:
-        #         indicator_feature.append(0)
-        # split the large list into smaller list of size 384
-        # assert len(indicator_feature) <= 2 * max_seq_len
-        
-        # indicator_feature = indicator_feature + [0] * (768 - len(indicator_feature))
-        # print(indicator_feature)
 
         tokens_a = tokenizer.tokenize(example.text_a)
 
@@ -270,7 +233,6 @@ def convert_examples_to_features(
             logger.info("label: %s (id = %d)" % (example.label, label_id))
             logger.info("e1_mask: %s" % " ".join([str(x) for x in e1_mask]))
             logger.info("e2_mask: %s" % " ".join([str(x) for x in e2_mask]))
-            # logger.info("indicator_feature: %s" % " ".join([str(x) for x in indicator_feature]))
         
         features.append(
             InputFeatures(
@@ -303,7 +265,7 @@ def load_and_cache_examples(args, tokenizer, mode):
 
     if os.path.exists(cached_features_file):
         logger.info("Loading features from cached file %s", cached_features_file)
-        features = torch.load(cached_features_file)
+        features = torch.load(cached_features_file, weights_only=False)
     else:
         logger.info("Creating features from dataset file at %s", args.data_dir)
         if mode == "train":
@@ -329,7 +291,6 @@ def load_and_cache_examples(args, tokenizer, mode):
     all_e2_mask = torch.tensor([f.e2_mask for f in features], dtype=torch.long)  # add e2 mask
     
     all_label_ids = torch.tensor([f.label_id for f in features], dtype=torch.long)
-    # all_indicator_feature = torch.tensor([f.indicator_feature for f in features], dtype=torch.long)
 
     dataset = TensorDataset(
         all_input_ids,
@@ -338,8 +299,6 @@ def load_and_cache_examples(args, tokenizer, mode):
         all_label_ids,
         all_e1_mask,
         all_e2_mask,
-        # all_indicator_feature
     )
 
     return dataset
-
