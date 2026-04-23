@@ -37,7 +37,7 @@ You can specify your data for pretraining, training, and testing in `main.py`.
 
 To replicate the results reported in the paper, first download the trained model from Google Drive:
 
-#### [Download the trained model from Google Drive](https://drive.google.com/drive/u/0/folders/1QpSVC9RX62uPmfv3r1Y1HSSf_PStU2Ie)
+#### [Download the trained model, test set results (reported in Table 3 in the paper), and large-scale assessment results from Google Drive](https://drive.google.com/drive/u/0/folders/1QpSVC9RX62uPmfv3r1Y1HSSf_PStU2Ie)
 
 The downloaded folder contains two subfolders: `EntityType-model` and `EntityType-pretrainedmodel`. Point `--model_dir` to `EntityType-model`:
 ```
